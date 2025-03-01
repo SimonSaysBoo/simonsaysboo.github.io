@@ -62,9 +62,17 @@
     <div id="cleanNullStatus" class="status"></div>
   </div>
   
+  <!-- Unnest Arrays -->
+  <div class="container">
+    <h2>Step 6: Unnest Array Data</h2>
+    <p>Convert array data into separate tables for better reporting:</p>
+    <button id="unnestArraysBtn" class="info-button">Unnest Array Data</button>
+    <div id="unnestArraysStatus" class="status"></div>
+  </div>
+  
   <!-- Database View Management - RECREATE VIEW -->
   <div class="container">
-    <h2>Step 6: Recreate Impact Report View</h2>
+    <h2>Step 7: Recreate Impact Report View</h2>
     <p>After importing all data, recreate the impact_report view:</p>
     <button id="recreateViewBtn" class="success-button">RECREATE Impact Report View</button>
     <div id="recreateViewStatus" class="status"></div>
@@ -78,267 +86,302 @@
     const SQL_DROP_VIEW = `DROP VIEW IF EXISTS impact_report;`;
     
     const SQL_CREATE_VIEW = `
-      DROP VIEW IF EXISTS impact_report;
+    DROP VIEW IF EXISTS impact_report;
 
-      CREATE VIEW public.impact_report AS
-      SELECT
-          c.*,  -- All columns from botpress_conversations
-          u."ud_kajabi_member_id",
-          k.*,  -- All columns from kajabi_happihub_contacts
-          kt."kj_tag",
-          kp."kj_product",
-          bt."bc_conv_topic",
-          be."bc_escalation"
-      FROM
-          public.botpress_conversations c
-      LEFT JOIN
-          public.botpress_userdata u ON c."bc_conversation_id" = u."ud_conversation_id"
-      LEFT JOIN
-          public.kajabi_happihub_contacts k ON u."ud_kajabi_member_id" = k."kj_kajabi_member_id"
-      LEFT JOIN
-          public."kj_tags_array" kt ON k."kj_kajabi_member_id" = kt."kj_kajabi_member_id"
-      LEFT JOIN
-          public."kj_products_array" kp ON k."kj_kajabi_member_id" = kp."kj_kajabi_member_id"
-      LEFT JOIN
-          public."bc_conv_topics_array" bt ON c."bc_conversation_id" = bt."bc_conversation_id"
-      LEFT JOIN
-          public."bc_escalations_array" be ON c."bc_conversation_id" = be."bc_conversation_id";
+    CREATE VIEW public.impact_report AS
+    SELECT
+    c.*,  -- All columns from botpress_conversations
+    u."ud_kajabi_member_id",
+    k.*,  -- All columns from kajabi_happihub_contacts
+    kt."kj_tag",
+    kp."kj_product",
+    bt."bc_conv_topic",
+    be."bc_escalation"
+    FROM
+    public.botpress_conversations c
+    LEFT JOIN
+    public.botpress_userdata u ON c."bc_conversation_id" = u."ud_conversation_id"
+    LEFT JOIN
+    public.kajabi_happihub_contacts k ON u."ud_kajabi_member_id" = k."kj_kajabi_member_id"
+    LEFT JOIN
+    public."kj_tags_array" kt ON k."kj_kajabi_member_id" = kt."kj_kajabi_member_id"
+    LEFT JOIN
+    public."kj_products_array" kp ON k."kj_kajabi_member_id" = kp."kj_kajabi_member_id"
+    LEFT JOIN
+    public."bc_conv_topics_array" bt ON c."bc_conversation_id" = bt."bc_conversation_id"
+    LEFT JOIN
+    public."bc_escalations_array" be ON c."bc_conversation_id" = be."bc_conversation_id";
     `;
     
     // Function to list available CSV files
     async function listFiles() {
-      try {
-        document.getElementById('fileList').innerHTML = 'Loading files...';
-        
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/list-botpress-csv`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          const fileListElement = document.getElementById('fileList');
-          
-          if (data.files.length === 0) {
-            fileListElement.innerHTML = '<p>No CSV files found.</p>';
-            return;
-          }
-          
-          let html = '';
-          data.files.forEach(file => {
-            html += `
-              <div class="file-item">
-                <strong>${file.name}</strong> 
-                <span>(${formatFileSize(file.metadata.size)})</span>
-                <button onclick="processFile('${file.name}')">Process</button>
-              </div>
-            `;
-          });
-          
-          fileListElement.innerHTML = html;
-        } else {
-          document.getElementById('fileList').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
-        }
-      } catch (error) {
-        document.getElementById('fileList').innerHTML = `<p class="error">Error: ${error.message}</p>`;
-      }
+    try {
+    document.getElementById('fileList').innerHTML = 'Loading files...';
+    
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/list-botpress-csv`, {
+    method: 'GET',
+    headers: {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+    }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+    const fileListElement = document.getElementById('fileList');
+    
+    if (data.files.length === 0) {
+    fileListElement.innerHTML = '<p>No CSV files found.</p>';
+    return;
+    }
+    
+    let html = '';
+    data.files.forEach(file => {
+    html += `
+    <div class="file-item">
+    <strong>${file.name}</strong> 
+    <span>(${formatFileSize(file.metadata.size)})</span>
+    <button onclick="processFile('${file.name}')">Process</button>
+    </div>
+    `;
+    });
+    
+    fileListElement.innerHTML = html;
+    } else {
+    document.getElementById('fileList').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
+    }
+    } catch (error) {
+    document.getElementById('fileList').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+    }
     }
     
     // Function to upload and process a file
     async function uploadFile() {
-      const fileInput = document.getElementById('csvFile');
-      const file = fileInput.files[0];
-      
-      if (!file) {
-        document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a file first.</p>';
-        return;
-      }
-      
-      if (!file.name.endsWith('.csv')) {
-        document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a CSV file.</p>';
-        return;
-      }
-      
-      document.getElementById('uploadLoading').style.display = 'block';
-      document.getElementById('uploadStatus').innerHTML = '';
-      
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/upload-botpress-csv`, {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-            // Don't set Content-Type here - browser will set it automatically for FormData
-          }
-        });
-        
-        const data = await response.json();
-        
-        document.getElementById('uploadLoading').style.display = 'none';
-        
-        if (data.success) {
-          document.getElementById('uploadStatus').innerHTML = `
-            <p class="success">File uploaded successfully!</p>
-            <p>File: ${data.fileName}</p>
-            <p>Size: ${formatFileSize(file.size)}</p>
-          `;
-          
-          // Process the file immediately after upload
-          await processFile(data.fileName);
-          
-          // Refresh the file list
-          listFiles();
-        } else {
-          document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
-        }
-      } catch (error) {
-        document.getElementById('uploadLoading').style.display = 'none';
-        document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
-      }
+    const fileInput = document.getElementById('csvFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+    document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a file first.</p>';
+    return;
+    }
+    
+    if (!file.name.endsWith('.csv')) {
+    document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a CSV file.</p>';
+    return;
+    }
+    
+    document.getElementById('uploadLoading').style.display = 'block';
+    document.getElementById('uploadStatus').innerHTML = '';
+    
+    try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/upload-botpress-csv`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+    // Don't set Content-Type here - browser will set it automatically for FormData
+    }
+    });
+    
+    const data = await response.json();
+    
+    document.getElementById('uploadLoading').style.display = 'none';
+    
+    if (data.success) {
+    document.getElementById('uploadStatus').innerHTML = `
+    <p class="success">File uploaded successfully!</p>
+    <p>File: ${data.fileName}</p>
+    <p>Size: ${formatFileSize(file.size)}</p>
+    `;
+    
+    // Process the file immediately after upload
+    await processFile(data.fileName);
+    
+    // Refresh the file list
+    listFiles();
+    } else {
+    document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
+    }
+    } catch (error) {
+    document.getElementById('uploadLoading').style.display = 'none';
+    document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+    }
     }
     
     // Function to process a single file
     async function processFile(fileName) {
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/process-botpress-csv`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ fileName })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          alert(`File processed successfully: ${fileName}\nRecords processed: ${data.recordsProcessed || data.result?.validRows || 'unknown'}`);
-        } else {
-          alert(`Error processing file: ${data.error || 'Unknown error'}`);
-        }
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
+    try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/process-botpress-csv`, {
+    method: 'POST',
+    headers: {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ fileName })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+    alert(`File processed successfully: ${fileName}\nRecords processed: ${data.recordsProcessed || data.result?.validRows || 'unknown'}`);
+    } else {
+    alert(`Error processing file: ${data.error || 'Unknown error'}`);
+    }
+    } catch (error) {
+    alert(`Error: ${error.message}`);
+    }
     }
     
     // Function to batch process all files
     async function batchProcess() {
-      document.getElementById('batchLoading').style.display = 'block';
-      document.getElementById('batchStatus').innerHTML = '';
-      
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-process-botpress-csv`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const data = await response.json();
-        
-        document.getElementById('batchLoading').style.display = 'none';
-        
-        if (data.success) {
-          let statusHtml = `<p class="success">Batch processing completed!</p>`;
-          
-          if (data.results && data.results.length > 0) {
-            statusHtml += `<ul>`;
-            data.results.forEach(result => {
-              statusHtml += `<li>${result.fileName}: ${result.status} ${result.message ? `(${result.message})` : ''}</li>`;
-            });
-            statusHtml += `</ul>`;
-          } else {
-            statusHtml += `<p>Files processed: ${data.filesProcessed || 'unknown'}</p>`;
-            statusHtml += `<p>Total records: ${data.totalRecords || 'unknown'}</p>`;
-          }
-          
-          document.getElementById('batchStatus').innerHTML = statusHtml;
-        } else {
-          document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
-        }
-      } catch (error) {
-        document.getElementById('batchLoading').style.display = 'none';
-        document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
-      }
+    document.getElementById('batchLoading').style.display = 'block';
+    document.getElementById('batchStatus').innerHTML = '';
+    
+    try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-process-botpress-csv`, {
+    method: 'POST',
+    headers: {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+    }
+    });
+    
+    const data = await response.json();
+    
+    document.getElementById('batchLoading').style.display = 'none';
+    
+    if (data.success) {
+    let statusHtml = `<p class="success">Batch processing completed!</p>`;
+    
+    if (data.results && data.results.length > 0) {
+    statusHtml += `<ul>`;
+    data.results.forEach(result => {
+    statusHtml += `<li>${result.fileName}: ${result.status} ${result.message ? `(${result.message})` : ''}</li>`;
+    });
+    statusHtml += `</ul>`;
+    } else {
+    statusHtml += `<p>Files processed: ${data.filesProcessed || 'unknown'}</p>`;
+    statusHtml += `<p>Total records: ${data.totalRecords || 'unknown'}</p>`;
+    }
+    
+    document.getElementById('batchStatus').innerHTML = statusHtml;
+    } else {
+    document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
+    }
+    } catch (error) {
+    document.getElementById('batchLoading').style.display = 'none';
+    document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+    }
     }
     
     // Function to execute SQL for dropping the view
     async function dropView() {
-      const statusElement = document.getElementById('dropViewStatus');
-      statusElement.innerHTML = 'Dropping view...';
-      statusElement.className = 'status';
-      
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/sql-execute`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ sql: SQL_DROP_VIEW })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-          statusElement.innerHTML = 'View dropped successfully!';
-          statusElement.className = 'status success';
-        } else {
-          statusElement.innerHTML = `Error dropping view: ${data.error || 'Unknown error'}`;
-          statusElement.className = 'status error';
-        }
-      } catch (error) {
-        statusElement.innerHTML = `Error: ${error.message}`;
-        statusElement.className = 'status error';
-      }
+    const statusElement = document.getElementById('dropViewStatus');
+    statusElement.innerHTML = 'Dropping view...';
+    statusElement.className = 'status';
+    
+    try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/sql-execute`, {
+    method: 'POST',
+    headers: {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ sql: SQL_DROP_VIEW })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+    statusElement.innerHTML = 'View dropped successfully!';
+    statusElement.className = 'status success';
+    } else {
+    statusElement.innerHTML = `Error dropping view: ${data.error || 'Unknown error'}`;
+    statusElement.className = 'status error';
+    }
+    } catch (error) {
+    statusElement.innerHTML = `Error: ${error.message}`;
+    statusElement.className = 'status error';
+    }
     }
     
     // Function to execute SQL for recreating the view
     async function recreateView() {
-      const statusElement = document.getElementById('recreateViewStatus');
-      statusElement.innerHTML = 'Recreating view...';
-      statusElement.className = 'status';
-      
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/sql-execute`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ sql: SQL_CREATE_VIEW })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-          statusElement.innerHTML = 'View recreated successfully!';
-          statusElement.className = 'status success';
-        } else {
-          statusElement.innerHTML = `Error recreating view: ${data.error || 'Unknown error'}`;
-          statusElement.className = 'status error';
-        }
-      } catch (error) {
-        statusElement.innerHTML = `Error: ${error.message}`;
-        statusElement.className = 'status error';
-      }
+    const statusElement = document.getElementById('recreateViewStatus');
+    statusElement.innerHTML = 'Recreating view...';
+    statusElement.className = 'status';
+    
+    try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/sql-execute`, {
+    method: 'POST',
+    headers: {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ sql: SQL_CREATE_VIEW })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+    statusElement.innerHTML = 'View recreated successfully!';
+    statusElement.className = 'status success';
+    } else {
+    statusElement.innerHTML = `Error recreating view: ${data.error || 'Unknown error'}`;
+    statusElement.className = 'status error';
+    }
+    } catch (error) {
+    statusElement.innerHTML = `Error: ${error.message}`;
+    statusElement.className = 'status error';
+    }
     }
     
     // Function to clean "null" string values
     async function cleanNullValues() {
-      const statusElement = document.getElementById('cleanNullStatus');
-      statusElement.innerHTML = 'Cleaning "null" values...';
+    const statusElement = document.getElementById('cleanNullStatus');
+    statusElement.innerHTML = 'Cleaning "null" values...';
+    statusElement.className = 'status';
+    
+    try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/clean-null-values`, {
+    method: 'POST',
+    headers: {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+    }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+    statusElement.innerHTML = `
+    <p class="success">Successfully cleaned "null" values!</p>
+    <p>Tables processed: ${data.tablesProcessed}</p>
+    <p>Columns updated: ${data.columnsUpdated}</p>
+    <p>Total rows affected: ${data.rowsAffected}</p>
+    `;
+    statusElement.className = 'status success';
+    } else {
+    statusElement.innerHTML = `Error cleaning null values: ${data.error || 'Unknown error'}`;
+    statusElement.className = 'status error';
+    }
+    } catch (error) {
+    statusElement.innerHTML = `Error: ${error.message}`;
+    statusElement.className = 'status error';
+    }
+    }
+    
+    // Function to unnest arrays
+    async function unnestArrays() {
+      const statusElement = document.getElementById('unnestArraysStatus');
+      statusElement.innerHTML = 'Unnesting array data...';
       statusElement.className = 'status';
       
       try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/clean-null-values`, {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/unnest-arrays`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
@@ -349,15 +392,10 @@
         const data = await response.json();
         
         if (response.ok && data.success) {
-          statusElement.innerHTML = `
-            <p class="success">Successfully cleaned "null" values!</p>
-            <p>Tables processed: ${data.tablesProcessed}</p>
-            <p>Columns updated: ${data.columnsUpdated}</p>
-            <p>Total rows affected: ${data.rowsAffected}</p>
-          `;
+          statusElement.innerHTML = 'Array data unnested successfully!';
           statusElement.className = 'status success';
         } else {
-          statusElement.innerHTML = `Error cleaning null values: ${data.error || 'Unknown error'}`;
+          statusElement.innerHTML = `Error unnesting arrays: ${data.error || 'Unknown error'}`;
           statusElement.className = 'status error';
         }
       } catch (error) {
@@ -368,10 +406,10 @@
     
     // Helper function to format file size
     function formatFileSize(bytes) {
-      if (!bytes) return 'Unknown size';
-      if (bytes < 1024) return bytes + ' bytes';
-      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-      else return (bytes / 1048576).toFixed(1) + ' MB';
+    if (!bytes) return 'Unknown size';
+    if (bytes < 1024) return bytes + ' bytes';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
     }
     
     // Event listeners
@@ -381,6 +419,7 @@
     document.getElementById('dropViewBtn').addEventListener('click', dropView);
     document.getElementById('recreateViewBtn').addEventListener('click', recreateView);
     document.getElementById('cleanNullBtn').addEventListener('click', cleanNullValues);
+    document.getElementById('unnestArraysBtn').addEventListener('click', unnestArrays);
     
     // Load files on page load
     listFiles();
