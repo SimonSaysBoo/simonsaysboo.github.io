@@ -1,215 +1,402 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Botpress CSV Import Tool</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-    .container { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
-    button { padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    button:hover { background-color: #45a049; }
-    .file-list { margin-top: 15px; }
-    .file-item { padding: 8px; margin: 5px 0; background-color: #f9f9f9; border-radius: 3px; }
-    .status { margin-top: 10px; padding: 10px; border-radius: 4px; }
-    .success { background-color: #dff0d8; color: #3c763d; }
-    .error { background-color: #f2dede; color: #a94442; }
-    .loading { display: none; margin-top: 10px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Botpress CSV Import System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .file-input {
+            margin-bottom: 15px;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+        .warning {
+            background-color: #fcf8e3;
+            color: #8a6d3b;
+        }
+        .db-action {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .danger-button {
+            background-color: #dc3545;
+        }
+        .danger-button:hover {
+            background-color: #c82333;
+        }
+        .success-button {
+            background-color: #28a745;
+        }
+        .success-button:hover {
+            background-color: #218838;
+        }
+    </style>
 </head>
 <body>
-  <h1>Botpress CSV Import Tool</h1>
-  
-  <div class="container">
-    <h2>Upload CSV File</h2>
-    <input type="file" id="csvFile" accept=".csv" />
-    <button id="uploadBtn">Upload and Process</button>
-    <div id="uploadStatus" class="status"></div>
-    <div id="uploadLoading" class="loading">Processing...</div>
-  </div>
-  
-  <div class="container">
-    <h2>Available CSV Files</h2>
-    <button id="refreshBtn">Refresh List</button>
-    <div id="fileList" class="file-list">Loading files...</div>
-  </div>
-  
-  <div class="container">
-    <h2>Batch Process Files</h2>
-    <button id="batchProcessBtn">Process All Files</button>
-    <div id="batchStatus" class="status"></div>
-    <div id="batchLoading" class="loading">Processing all files...</div>
-  </div>
-  
-  <script>
-    const SUPABASE_URL = 'https://ztgtgvinayyoyxfdkaaq.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0Z3RndmluYXl5b3l4ZmRrYWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk4NDM2NTMsImV4cCI6MjA0NTQxOTY1M30.P5fxdyQYuOV7S8ZjuFN8D4oK49sHDfj9KLu5QsJ_TY4'; // Replace with your actual anon key
+    <h1>Botpress CSV Import System</h1>
     
-    // Function to list available CSV files
-    async function listFiles() {
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/list-botpress-csv`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        });
+    <!-- Database View Management - DROP VIEW -->
+    <div class="db-action">
+        <h2>Step 1: Drop Impact Report View</h2>
+        <p>Before importing data, you must drop the impact_report view. Click the button below to drop the view:</p>
+        <button id="dropViewBtn" class="danger-button" onclick="dropView()">DROP Impact Report View</button>
+        <div id="dropViewStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Upload CSV Files</h2>
+        <p>Select a CSV file to upload:</p>
         
-        const data = await response.json();
+        <div class="file-input">
+            <input type="file" id="csvFile" accept=".csv">
+            <button onclick="uploadFile()">Upload</button>
+        </div>
         
-        if (data.success) {
-          const fileListElement = document.getElementById('fileList');
-          
-          if (data.files.length === 0) {
-            fileListElement.innerHTML = '<p>No CSV files found.</p>';
-            return;
-          }
-          
-          let html = '';
-          data.files.forEach(file => {
-            html += `
-              <div class="file-item">
-                <strong>${file.name}</strong> 
-                <span>(${formatFileSize(file.metadata.size)})</span>
-                <button onclick="processFile('${file.name}')">Process</button>
-              </div>
+        <h3>Available Files:</h3>
+        <div id="fileList">Loading...</div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 3: Process Files</h2>
+        <p>Select a file to process:</p>
+        <select id="fileSelect">
+            <option value="">-- Select a file --</option>
+        </select>
+        <button onclick="processFile()">Process</button>
+        <button onclick="batchProcess()">Process All Files</button>
+    </div>
+    
+    <div id="status"></div>
+    
+    <!-- Database View Management - RECREATE VIEW -->
+    <div class="db-action">
+        <h2>Step 4: Recreate Impact Report View</h2>
+        <p>After importing all data, recreate the impact_report view. Click the button below to recreate the view:</p>
+        <button id="recreateViewBtn" class="success-button" onclick="recreateView()">RECREATE Impact Report View</button>
+        <div id="recreateViewStatus"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ztgtgvinayyoyxfdkaaq.supabase.co';
+        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0Z3RndmluYXl5b3l4ZmRrYWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDg0NTM5NzcsImV4cCI6MjAyNDAyOTk3N30.Nh8yCZnDMnYQvmYJPGYLLksbO58wR0PrKKKwvSajkJM';
+        
+        // Fetch the list of files when the page loads
+        window.onload = function() {
+            fetchFiles();
+        };
+        
+        async function fetchFiles() {
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/list-botpress-csv`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateFileList(data.files);
+                } else {
+                    showStatus('Error fetching files: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+            }
+        }
+        
+        function updateFileList(files) {
+            const fileListElement = document.getElementById('fileList');
+            const fileSelectElement = document.getElementById('fileSelect');
+            
+            // Clear existing options except the first one
+            while (fileSelectElement.options.length > 1) {
+                fileSelectElement.remove(1);
+            }
+            
+            if (files.length === 0) {
+                fileListElement.innerHTML = '<p>No files uploaded yet.</p>';
+                return;
+            }
+            
+            let html = '<ul>';
+            files.forEach(file => {
+                html += `<li>${file.name} (${formatBytes(file.metadata.size)})</li>`;
+                
+                const option = document.createElement('option');
+                option.value = file.name;
+                option.textContent = file.name;
+                fileSelectElement.appendChild(option);
+            });
+            html += '</ul>';
+            
+            fileListElement.innerHTML = html;
+        }
+        
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        
+        async function uploadFile() {
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('Please select a file to upload', 'warning');
+                return;
+            }
+            
+            showStatus('Uploading file...', '');
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/upload-botpress-csv`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${ANON_KEY}`
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`File uploaded successfully: ${file.name}`, 'success');
+                    fetchFiles(); // Refresh the file list
+                } else {
+                    showStatus('Error uploading file: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function processFile() {
+            const fileSelect = document.getElementById('fileSelect');
+            const fileName = fileSelect.value;
+            
+            if (!fileName) {
+                showStatus('Please select a file to process', 'warning');
+                return;
+            }
+            
+            showStatus(`Processing file: ${fileName}...`, '');
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/process-botpress-csv`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ fileName })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = data.result;
+                    showStatus(`
+                        File processed successfully: ${result.fileName}<br>
+                        Total rows: ${result.totalRows}<br>
+                        Valid rows: ${result.validRows}<br>
+                        Unique rows inserted: ${result.uniqueRows}<br>
+                        Table: ${result.tableName}
+                    `, 'success');
+                } else {
+                    showStatus('Error processing file: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function batchProcess() {
+            showStatus('Starting batch processing...', '');
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-process-botpress-csv`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let resultHtml = 'Batch processing completed:<br><ul>';
+                    data.results.forEach(result => {
+                        resultHtml += `<li>${result.fileName}: ${result.status} (${result.message})</li>`;
+                    });
+                    resultHtml += '</ul>';
+                    
+                    showStatus(resultHtml, 'success');
+                } else {
+                    showStatus('Error in batch processing: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+            }
+        }
+        
+        function showStatus(message, type) {
+            const statusElement = document.getElementById('status');
+            statusElement.innerHTML = message;
+            statusElement.className = type;
+        }
+        
+        // New function to drop the impact_report view
+        async function dropView() {
+            const statusElement = document.getElementById('dropViewStatus');
+            statusElement.innerHTML = 'Dropping view...';
+            statusElement.className = '';
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/sql-execute`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        sql: 'DROP VIEW IF EXISTS impact_report;' 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusElement.innerHTML = 'View dropped successfully!';
+                    statusElement.className = 'success';
+                } else {
+                    statusElement.innerHTML = 'Error dropping view: ' + data.error;
+                    statusElement.className = 'error';
+                }
+            } catch (error) {
+                statusElement.innerHTML = 'Error: ' + error.message;
+                statusElement.className = 'error';
+            }
+        }
+        
+        // New function to recreate the impact_report view
+        async function recreateView() {
+            const statusElement = document.getElementById('recreateViewStatus');
+            statusElement.innerHTML = 'Recreating view...';
+            statusElement.className = '';
+            
+            const createViewSQL = `
+                DROP VIEW IF EXISTS impact_report;
+
+                CREATE VIEW public.impact_report AS
+                SELECT
+                    c.*,  -- All columns from botpress_conversations
+                    u."ud_kajabi_member_id",
+                    k.*,  -- All columns from kajabi_happihub_contacts
+                    kt."kj_tag",
+                    kp."kj_product",
+                    bt."bc_conv_topic",
+                    be."bc_escalation"
+                FROM
+                    public.botpress_conversations c
+                LEFT JOIN
+                    public.botpress_userdata u ON c."bc_conversation_id" = u."ud_conversation_id"
+                LEFT JOIN
+                    public.kajabi_happihub_contacts k ON u."ud_kajabi_member_id" = k."kj_kajabi_member_id"
+                LEFT JOIN
+                    public."kj_tags_array" kt ON k."kj_kajabi_member_id" = kt."kj_kajabi_member_id"
+                LEFT JOIN
+                    public."kj_products_array" kp ON k."kj_kajabi_member_id" = kp."kj_kajabi_member_id"
+                LEFT JOIN
+                    public."bc_conv_topics_array" bt ON c."bc_conversation_id" = bt."bc_conversation_id"
+                LEFT JOIN
+                    public."bc_escalations_array" be ON c."bc_conversation_id" = be."bc_conversation_id";
             `;
-          });
-          
-          fileListElement.innerHTML = html;
-        } else {
-          document.getElementById('fileList').innerHTML = `<p class="error">Error: ${data.error}</p>`;
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/sql-execute`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        sql: createViewSQL 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusElement.innerHTML = 'View recreated successfully!';
+                    statusElement.className = 'success';
+                } else {
+                    statusElement.innerHTML = 'Error recreating view: ' + data.error;
+                    statusElement.className = 'error';
+                }
+            } catch (error) {
+                statusElement.innerHTML = 'Error: ' + error.message;
+                statusElement.className = 'error';
+            }
         }
-      } catch (error) {
-        document.getElementById('fileList').innerHTML = `<p class="error">Error: ${error.message}</p>`;
-      }
-    }
-    
-    // Function to upload and process a file
-    async function uploadFile() {
-      const fileInput = document.getElementById('csvFile');
-      const file = fileInput.files[0];
-      
-      if (!file) {
-        document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a file first.</p>';
-        return;
-      }
-      
-      if (!file.name.endsWith('.csv')) {
-        document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a CSV file.</p>';
-        return;
-      }
-      
-      document.getElementById('uploadLoading').style.display = 'block';
-      document.getElementById('uploadStatus').innerHTML = '';
-      
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/upload-botpress-csv`, {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-            // Don't set Content-Type here - browser will set it automatically for FormData
-          }
-        });
-        
-        const data = await response.json();
-        
-        document.getElementById('uploadLoading').style.display = 'none';
-        
-        if (data.success) {
-          document.getElementById('uploadStatus').innerHTML = `
-            <p class="success">File uploaded successfully!</p>
-            <p>File: ${data.fileName}</p>
-            <p>Size: ${formatFileSize(data.fileSize)}</p>
-          `;
-          
-          // Process the file immediately after upload
-          await processFile(data.fileName);
-          
-          // Refresh the file list
-          listFiles();
-        } else {
-          document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${data.error}</p>`;
-        }
-      } catch (error) {
-        document.getElementById('uploadLoading').style.display = 'none';
-        document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
-      }
-    }
-    
-    // Function to process a single file
-    async function processFile(fileName) {
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/process-botpress-csv`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ fileName })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          alert(`File processed successfully: ${fileName}\nRecords processed: ${data.recordsProcessed}`);
-        } else {
-          alert(`Error processing file: ${data.error}`);
-        }
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
-    }
-    
-    // Function to batch process all files
-    async function batchProcess() {
-      document.getElementById('batchLoading').style.display = 'block';
-      document.getElementById('batchStatus').innerHTML = '';
-      
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-process-botpress-csv`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const data = await response.json();
-        
-        document.getElementById('batchLoading').style.display = 'none';
-        
-        if (data.success) {
-          document.getElementById('batchStatus').innerHTML = `
-            <p class="success">Batch processing completed!</p>
-            <p>Files processed: ${data.filesProcessed}</p>
-            <p>Total records: ${data.totalRecords}</p>
-          `;
-        } else {
-          document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${data.error}</p>`;
-        }
-      } catch (error) {
-        document.getElementById('batchLoading').style.display = 'none';
-        document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
-      }
-    }
-    
-    // Helper function to format file size
-    function formatFileSize(bytes) {
-      if (bytes < 1024) return bytes + ' bytes';
-      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-      else return (bytes / 1048576).toFixed(1) + ' MB';
-    }
-    
-    // Event listeners
-    document.getElementById('refreshBtn').addEventListener('click', listFiles);
-    document.getElementById('uploadBtn').addEventListener('click', uploadFile);
-    document.getElementById('batchProcessBtn').addEventListener('click', batchProcess);
-    
-    // Load files on page load
-    listFiles();
-  </script>
+    </script>
 </body>
 </html>
