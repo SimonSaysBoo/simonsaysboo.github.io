@@ -1,498 +1,215 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Botpress CSV Import Tool</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-      line-height: 1.6;
-    }
-    .header {
-      background-color: #f5f5f5;
-      padding: 20px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .upload-container {
-      border: 2px dashed #ccc;
-      padding: 20px;
-      text-align: center;
-      margin: 20px 0;
-      border-radius: 8px;
-    }
-    .file-item {
-      margin: 10px 0;
-      padding: 15px;
-      border: 1px solid #eee;
-      border-radius: 4px;
-      background-color: #fafafa;
-    }
-    .file-item.processed {
-      background-color: #f0fff0;
-      border-color: #afa;
-    }
-    .file-item.error {
-      background-color: #fff0f0;
-      border-color: #faa;
-    }
-    #result {
-      margin-top: 20px;
-      padding: 15px;
-      border: 1px solid #eee;
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      display: none;
-    }
-    .progress {
-      margin-top: 10px;
-      display: none;
-      font-weight: bold;
-      color: #666;
-    }
-    .button {
-      padding: 10px 16px;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin: 5px;
-      font-size: 14px;
-    }
-    .button:hover {
-      background-color: #45a049;
-    }
-    .button.secondary {
-      background-color: #2196F3;
-    }
-    .button.secondary:hover {
-      background-color: #0b7dda;
-    }
-    .button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-    input[type="file"] {
-      margin: 10px 0;
-    }
-    .logs-container {
-      margin-top: 30px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    table, th, td {
-      border: 1px solid #ddd;
-    }
-    th, td {
-      padding: 10px;
-      text-align: left;
-    }
-    th {
-      background-color: #f2f2f2;
-    }
-    tr:nth-child(even) {
-      background-color: #f9f9f9;
-    }
-    .status-success {
-      color: green;
-    }
-    .status-error {
-      color: red;
-    }
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .container { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+    button { padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background-color: #45a049; }
+    .file-list { margin-top: 15px; }
+    .file-item { padding: 8px; margin: 5px 0; background-color: #f9f9f9; border-radius: 3px; }
+    .status { margin-top: 10px; padding: 10px; border-radius: 4px; }
+    .success { background-color: #dff0d8; color: #3c763d; }
+    .error { background-color: #f2dede; color: #a94442; }
+    .loading { display: none; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Botpress CSV Import Tool</h1>
-    <p>Upload and process CSV files from Botpress to import into your Supabase database.</p>
+  <h1>Botpress CSV Import Tool</h1>
+  
+  <div class="container">
+    <h2>Upload CSV File</h2>
+    <input type="file" id="csvFile" accept=".csv" />
+    <button id="uploadBtn">Upload and Process</button>
+    <div id="uploadStatus" class="status"></div>
+    <div id="uploadLoading" class="loading">Processing...</div>
   </div>
-
-  <div class="upload-container">
-    <h2>Upload CSV Files</h2>
-    <p>Select one of the following CSV files to upload and process:</p>
-    <ul style="text-align: left; display: inline-block;">
-      <li><strong>botpress_userdata.csv</strong> - User data from Botpress</li>
-      <li><strong>botpress_conversations.csv</strong> - Conversation data from Botpress</li>
-      <li><strong>kajabi_contacts.csv</strong> - Contact data from Kajabi</li>
-    </ul>
-
-    <form id="uploadForm">
-      <input type="file" id="csvFile" accept=".csv" required>
-      <button type="submit" class="button" id="uploadButton">Upload and Process</button>
-    </form>
-    <div class="progress" id="progress">Processing... This may take a few moments.</div>
-
-    <p style="margin-top: 20px;">Or process all files that have been uploaded:</p>
-    <button id="batchProcess" class="button secondary">Process All Files</button>
+  
+  <div class="container">
+    <h2>Available CSV Files</h2>
+    <button id="refreshBtn">Refresh List</button>
+    <div id="fileList" class="file-list">Loading files...</div>
   </div>
-
-  <div id="fileList">
-    <h2>Uploaded Files</h2>
-    <p>These files are currently stored in your Supabase storage bucket:</p>
-    <div id="files">Loading...</div>
+  
+  <div class="container">
+    <h2>Batch Process Files</h2>
+    <button id="batchProcessBtn">Process All Files</button>
+    <div id="batchStatus" class="status"></div>
+    <div id="batchLoading" class="loading">Processing all files...</div>
   </div>
-
-  <div id="result"></div>
-
-  <div class="logs-container">
-    <h2>Import Logs</h2>
-    <p>Recent import operations:</p>
-    <div id="logs">Loading logs...</div>
-  </div>
-
+  
   <script>
-    // Configuration
     const SUPABASE_URL = 'https://ztgtgvinayyoyxfdkaaq.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0Z3RndmluYXl5b3l4ZmRrYWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk4NDM2NTMsImV4cCI6MjA0NTQxOTY1M30.P5fxdyQYuOV7S8ZjuFN8D4oK49sHDfj9KLu5QsJ_TY4'; // Replace with your actual anon key
-
-    // Function to load the list of files
-    async function loadFiles() {
+    
+    // Function to list available CSV files
+    async function listFiles() {
       try {
-        const filesDiv = document.getElementById('files');
-        filesDiv.innerHTML = 'Loading files...';
-
         const response = await fetch(`${SUPABASE_URL}/functions/v1/list-botpress-csv`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
           }
         });
-
+        
         const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to load files');
-        }
-
-        if (data.files && data.files.length > 0) {
-          let filesHtml = '';
+        
+        if (data.success) {
+          const fileListElement = document.getElementById('fileList');
+          
+          if (data.files.length === 0) {
+            fileListElement.innerHTML = '<p>No CSV files found.</p>';
+            return;
+          }
+          
+          let html = '';
           data.files.forEach(file => {
-            filesHtml += `
+            html += `
               <div class="file-item">
-                <strong>${file.name}</strong>
-                <p>Size: ${formatBytes(file.metadata.size)}</p>
-                <p>Last modified: ${new Date(file.metadata.lastModified).toLocaleString()}</p>
-                <button class="button process-file" data-filename="${file.name}">Process</button>
+                <strong>${file.name}</strong> 
+                <span>(${formatFileSize(file.metadata.size)})</span>
+                <button onclick="processFile('${file.name}')">Process</button>
               </div>
             `;
           });
-          filesDiv.innerHTML = filesHtml;
-
-          // Add event listeners to process buttons
-          document.querySelectorAll('.process-file').forEach(button => {
-            button.addEventListener('click', function() {
-              processFile(this.getAttribute('data-filename'));
-            });
-          });
+          
+          fileListElement.innerHTML = html;
         } else {
-          filesDiv.innerHTML = '<p>No files found. Upload a CSV file to get started.</p>';
+          document.getElementById('fileList').innerHTML = `<p class="error">Error: ${data.error}</p>`;
         }
       } catch (error) {
-        console.error('Error loading files:', error);
-        document.getElementById('files').innerHTML = `<p>Error loading files: ${error.message}</p>`;
+        document.getElementById('fileList').innerHTML = `<p class="error">Error: ${error.message}</p>`;
       }
     }
-
-    // Function to load import logs
-    async function loadLogs() {
-      try {
-        const logsDiv = document.getElementById('logs');
-        logsDiv.innerHTML = 'Loading logs...';
-
-        // This would be a custom function you'd need to create
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/import_logs?order=created_at.desc&limit=10`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'apikey': SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        const logs = await response.json();
-
-        if (!response.ok) {
-          throw new Error('Failed to load logs');
-        }
-
-        if (logs && logs.length > 0) {
-          let logsHtml = `
-            <table>
-              <tr>
-                <th>File</th>
-                <th>Table</th>
-                <th>Status</th>
-                <th>Rows Processed</th>
-                <th>Rows Inserted</th>
-                <th>Date</th>
-              </tr>
-          `;
-
-          logs.forEach(log => {
-            logsHtml += `
-              <tr>
-                <td>${log.file_name}</td>
-                <td>${log.table_name || '-'}</td>
-                <td class="status-${log.status === 'success' ? 'success' : 'error'}">${log.status}</td>
-                <td>${log.rows_processed || 0}</td>
-                <td>${log.rows_inserted || 0}</td>
-                <td>${new Date(log.processed_at).toLocaleString()}</td>
-              </tr>
-            `;
-          });
-
-          logsHtml += '</table>';
-          logsDiv.innerHTML = logsHtml;
-        } else {
-          logsDiv.innerHTML = '<p>No import logs found. Process a file to see logs.</p>';
-        }
-      } catch (error) {
-        console.error('Error loading logs:', error);
-        document.getElementById('logs').innerHTML = `<p>Error loading logs: ${error.message}</p>`;
-      }
-    }
-
-    // Function to format bytes
-    function formatBytes(bytes, decimals = 2) {
-      if (bytes === 0) return '0 Bytes';
-
-      const k = 1024;
-      const dm = decimals < 0 ? 0 : decimals;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-    }
-
-    // Function to process a single file
-    async function processFile(fileName) {
-      const result = document.getElementById('result');
-      result.style.display = 'block';
-      result.innerHTML = `<p>Processing ${fileName}...</p>`;
-
-      // Disable all process buttons while processing
-      document.querySelectorAll('.process-file').forEach(button => {
-        button.disabled = true;
-      });
-
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/process-botpress-csv`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({ fileName })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Processing failed');
-        }
-
-        if (data.success) {
-          result.innerHTML = `
-            <h3>Processing Result: ${fileName}</h3>
-            <p>Total rows: ${data.result.totalRows}</p>
-            <p>Valid rows: ${data.result.validRows}</p>
-            <p>Unique rows inserted: ${data.result.uniqueRows}</p>
-            <p>Target table: ${data.result.tableName}</p>
-          `;
-
-          // Update the file item to show it's been processed
-          document.querySelectorAll('.file-item').forEach(item => {
-            if (item.querySelector(`[data-filename="${fileName}"]`)) {
-              item.classList.add('processed');
-            }
-          });
-        } else {
-          result.innerHTML = `
-            <h3>Error Processing: ${fileName}</h3>
-            <p>${data.error}</p>
-          `;
-
-          // Update the file item to show the error
-          document.querySelectorAll('.file-item').forEach(item => {
-            if (item.querySelector(`[data-filename="${fileName}"]`)) {
-              item.classList.add('error');
-            }
-          });
-        }
-
-        // Reload logs to show the new import
-        loadLogs();
-      } catch (error) {
-        result.innerHTML = `
-          <h3>Error</h3>
-          <p>${error.message}</p>
-        `;
-      } finally {
-        // Re-enable all process buttons
-        document.querySelectorAll('.process-file').forEach(button => {
-          button.disabled = false;
-        });
-      }
-    }
-
-    // Function to process all files
-    async function processAllFiles() {
-      const result = document.getElementById('result');
-      result.style.display = 'block';
-      result.innerHTML = `<p>Processing all files...</p>`;
-
-      // Disable the batch process button
-      document.getElementById('batchProcess').disabled = true;
-
-      try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-process-botpress-csv`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Batch processing failed');
-        }
-
-        if (data.success) {
-          let resultHtml = `<h3>Batch Processing Results</h3>`;
-
-          data.results.forEach(fileResult => {
-            resultHtml += `
-              <div class="file-item ${fileResult.success ? 'processed' : 'error'}">
-                <h4>${fileResult.fileName}</h4>
-                ${fileResult.success
-                  ? `<p>Total rows: ${fileResult.result.totalRows}</p>
-                     <p>Valid rows: ${fileResult.result.validRows}</p>
-                     <p>Unique rows inserted: ${fileResult.result.uniqueRows}</p>
-                     <p>Target table: ${fileResult.result.tableName}</p>`
-                  : `<p>Error: ${fileResult.error}</p>`}
-              </div>
-            `;
-
-            // Update the file items in the list
-            document.querySelectorAll('.file-item').forEach(item => {
-              if (item.querySelector(`[data-filename="${fileResult.fileName}"]`)) {
-                item.classList.add(fileResult.success ? 'processed' : 'error');
-              }
-            });
-          });
-
-          result.innerHTML = resultHtml;
-        } else {
-          result.innerHTML = `
-            <h3>Error in Batch Processing</h3>
-            <p>${data.error}</p>
-          `;
-        }
-
-        // Reload logs to show the new imports
-        loadLogs();
-      } catch (error) {
-        result.innerHTML = `
-          <h3>Error</h3>
-          <p>${error.message}</p>
-        `;
-      } finally {
-        // Re-enable the batch process button
-        document.getElementById('batchProcess').disabled = false;
-      }
-    }
-
-    // Event listener for the upload form
-    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-      e.preventDefault();
-
+    
+    // Function to upload and process a file
+    async function uploadFile() {
       const fileInput = document.getElementById('csvFile');
       const file = fileInput.files[0];
-
+      
       if (!file) {
-        alert('Please select a file');
+        document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a file first.</p>';
         return;
       }
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const progress = document.getElementById('progress');
-      const result = document.getElementById('result');
-      const uploadButton = document.getElementById('uploadButton');
-
-      progress.style.display = 'block';
-      result.style.display = 'none';
-      uploadButton.disabled = true;
-
+      
+      if (!file.name.endsWith('.csv')) {
+        document.getElementById('uploadStatus').innerHTML = '<p class="error">Please select a CSV file.</p>';
+        return;
+      }
+      
+      document.getElementById('uploadLoading').style.display = 'block';
+      document.getElementById('uploadStatus').innerHTML = '';
+      
       try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
         const response = await fetch(`${SUPABASE_URL}/functions/v1/upload-botpress-csv`, {
           method: 'POST',
           body: formData,
           headers: {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            // Don't set Content-Type here - browser will set it automatically for FormData
           }
         });
-
+        
         const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Upload failed');
-        }
-
+        
+        document.getElementById('uploadLoading').style.display = 'none';
+        
         if (data.success) {
-          result.innerHTML = `
-            <h3>Upload and Processing Result</h3>
-            <p>File: ${file.name}</p>
-            <p>Total rows: ${data.result.result.totalRows}</p>
-            <p>Valid rows: ${data.result.result.validRows}</p>
-            <p>Unique rows inserted: ${data.result.result.uniqueRows}</p>
-            <p>Target table: ${data.result.result.tableName}</p>
+          document.getElementById('uploadStatus').innerHTML = `
+            <p class="success">File uploaded successfully!</p>
+            <p>File: ${data.fileName}</p>
+            <p>Size: ${formatFileSize(data.fileSize)}</p>
+          `;
+          
+          // Process the file immediately after upload
+          await processFile(data.fileName);
+          
+          // Refresh the file list
+          listFiles();
+        } else {
+          document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${data.error}</p>`;
+        }
+      } catch (error) {
+        document.getElementById('uploadLoading').style.display = 'none';
+        document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      }
+    }
+    
+    // Function to process a single file
+    async function processFile(fileName) {
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/process-botpress-csv`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ fileName })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert(`File processed successfully: ${fileName}\nRecords processed: ${data.recordsProcessed}`);
+        } else {
+          alert(`Error processing file: ${data.error}`);
+        }
+      } catch (error) {
+        alert(`Error: ${error.message}`);
+      }
+    }
+    
+    // Function to batch process all files
+    async function batchProcess() {
+      document.getElementById('batchLoading').style.display = 'block';
+      document.getElementById('batchStatus').innerHTML = '';
+      
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-process-botpress-csv`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        document.getElementById('batchLoading').style.display = 'none';
+        
+        if (data.success) {
+          document.getElementById('batchStatus').innerHTML = `
+            <p class="success">Batch processing completed!</p>
+            <p>Files processed: ${data.filesProcessed}</p>
+            <p>Total records: ${data.totalRecords}</p>
           `;
         } else {
-          result.innerHTML = `
-            <h3>Error</h3>
-            <p>${data.error}</p>
-          `;
+          document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${data.error}</p>`;
         }
-
-        result.style.display = 'block';
-
-        // Reload the file list and logs
-        loadFiles();
-        loadLogs();
       } catch (error) {
-        result.innerHTML = `
-          <h3>Error</h3>
-          <p>${error.message}</p>
-        `;
-        result.style.display = 'block';
-      } finally {
-        progress.style.display = 'none';
-        fileInput.value = ''; // Clear the file input
-        uploadButton.disabled = false;
+        document.getElementById('batchLoading').style.display = 'none';
+        document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
       }
-    });
-
-    // Event listener for the batch process button
-    document.getElementById('batchProcess').addEventListener('click', processAllFiles);
-
-    // Load the file list and logs when the page loads
-    document.addEventListener('DOMContentLoaded', () => {
-      loadFiles();
-      loadLogs();
-    });
+    }
+    
+    // Helper function to format file size
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' bytes';
+      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      else return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+    
+    // Event listeners
+    document.getElementById('refreshBtn').addEventListener('click', listFiles);
+    document.getElementById('uploadBtn').addEventListener('click', uploadFile);
+    document.getElementById('batchProcessBtn').addEventListener('click', batchProcess);
+    
+    // Load files on page load
+    listFiles();
   </script>
 </body>
 </html>
