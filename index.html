@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Botpress CSV Import Tool</title>
+  <title>Happihub CSV Import Tool</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
     .container { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
@@ -18,6 +18,8 @@
     .danger-button:hover { background-color: #c82333; }
     .success-button { background-color: #28a745; }
     .success-button:hover { background-color: #218838; }
+    .info-button { background-color: #17a2b8; }
+    .info-button:hover { background-color: #138496; }
   </style>
 </head>
 <body>
@@ -52,9 +54,17 @@
     <div id="batchLoading" class="loading">Processing all files...</div>
   </div>
   
+  <!-- Clean Null Values -->
+  <div class="container">
+    <h2>Step 5: Clean "null" String Values</h2>
+    <p>Replace all "null" string values with actual NULL values in the database:</p>
+    <button id="cleanNullBtn" class="info-button">Clean "null" Values</button>
+    <div id="cleanNullStatus" class="status"></div>
+  </div>
+  
   <!-- Database View Management - RECREATE VIEW -->
   <div class="container">
-    <h2>Step 5: Recreate Impact Report View</h2>
+    <h2>Step 6: Recreate Impact Report View</h2>
     <p>After importing all data, recreate the impact_report view:</p>
     <button id="recreateViewBtn" class="success-button">RECREATE Impact Report View</button>
     <div id="recreateViewStatus" class="status"></div>
@@ -266,7 +276,6 @@
       statusElement.className = 'status';
       
       try {
-        // Create a new Edge Function called sql-execute
         const response = await fetch(`${SUPABASE_URL}/functions/v1/sql-execute`, {
           method: 'POST',
           headers: {
@@ -322,6 +331,41 @@
       }
     }
     
+    // Function to clean "null" string values
+    async function cleanNullValues() {
+      const statusElement = document.getElementById('cleanNullStatus');
+      statusElement.innerHTML = 'Cleaning "null" values...';
+      statusElement.className = 'status';
+      
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/clean-null-values`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          statusElement.innerHTML = `
+            <p class="success">Successfully cleaned "null" values!</p>
+            <p>Tables processed: ${data.tablesProcessed}</p>
+            <p>Columns updated: ${data.columnsUpdated}</p>
+            <p>Total rows affected: ${data.rowsAffected}</p>
+          `;
+          statusElement.className = 'status success';
+        } else {
+          statusElement.innerHTML = `Error cleaning null values: ${data.error || 'Unknown error'}`;
+          statusElement.className = 'status error';
+        }
+      } catch (error) {
+        statusElement.innerHTML = `Error: ${error.message}`;
+        statusElement.className = 'status error';
+      }
+    }
+    
     // Helper function to format file size
     function formatFileSize(bytes) {
       if (!bytes) return 'Unknown size';
@@ -336,6 +380,7 @@
     document.getElementById('batchProcessBtn').addEventListener('click', batchProcess);
     document.getElementById('dropViewBtn').addEventListener('click', dropView);
     document.getElementById('recreateViewBtn').addEventListener('click', recreateView);
+    document.getElementById('cleanNullBtn').addEventListener('click', cleanNullValues);
     
     // Load files on page load
     listFiles();
