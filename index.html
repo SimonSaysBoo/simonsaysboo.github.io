@@ -20,6 +20,7 @@
     .success-button:hover { background-color: #218838; }
     .info-button { background-color: #17a2b8; }
     .info-button:hover { background-color: #138496; }
+    .processing { background-color: #e9ecef; color: #495057; }
   </style>
 </head>
 <body>
@@ -70,9 +71,17 @@
     <div id="unnestArraysStatus" class="status"></div>
   </div>
   
+  <!-- Classify Conversation Topics - NEW SECTION -->
+  <div class="container">
+    <h2>Step 7: Classify Conversation Topics</h2>
+    <p>Use AI to classify conversation topics for better analysis:</p>
+    <button id="classifyTopicsBtn" class="info-button">Classify Conversation Topics</button>
+    <div id="classifyTopicsStatus" class="status"></div>
+  </div>
+  
   <!-- Database View Management - RECREATE VIEW -->
   <div class="container">
-    <h2>Step 7: Recreate Impact Report View</h2>
+    <h2>Step 8: Recreate Impact Report View</h2>
     <p>After importing all data, recreate the impact_report view:</p>
     <button id="recreateViewBtn" class="success-button">RECREATE Impact Report View</button>
     <div id="recreateViewStatus" class="status"></div>
@@ -96,6 +105,7 @@
     kt."kj_tag",
     kp."kj_product",
     bt."bc_conv_topic",
+    bt."bc_conv_topic_classify",
     be."bc_escalation"
     FROM
     public.botpress_conversations c
@@ -404,6 +414,36 @@
       }
     }
     
+    // Function to classify conversation topics
+    async function classifyTopics() {
+      const statusElement = document.getElementById('classifyTopicsStatus');
+      statusElement.textContent = 'Classifying topics...';
+      statusElement.className = 'status processing';
+      
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/classify-topics`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          statusElement.textContent = data.message || 'Topics classified successfully!';
+          statusElement.className = 'status success';
+        } else {
+          statusElement.textContent = `Error classifying topics: ${data.error || 'Unknown error'}`;
+          statusElement.className = 'status error';
+        }
+      } catch (error) {
+        statusElement.textContent = `Error: ${error.message}`;
+        statusElement.className = 'status error';
+      }
+    }
+    
     // Helper function to format file size
     function formatFileSize(bytes) {
     if (!bytes) return 'Unknown size';
@@ -420,6 +460,7 @@
     document.getElementById('recreateViewBtn').addEventListener('click', recreateView);
     document.getElementById('cleanNullBtn').addEventListener('click', cleanNullValues);
     document.getElementById('unnestArraysBtn').addEventListener('click', unnestArrays);
+    document.getElementById('classifyTopicsBtn').addEventListener('click', classifyTopics);
     
     // Load files on page load
     listFiles();
