@@ -66,9 +66,9 @@
   <div class="container">
     <h2>Step 2: Upload CSV File</h2>
     <input type="file" id="csvFile" accept=".csv" />
-    <button id="uploadBtn">Upload and Process</button>
+    <button id="uploadBtn">Upload</button>
     <div id="uploadStatus" class="status"></div>
-    <div id="uploadLoading" class="loading">Processing...</div>
+    <div id="uploadLoading" class="loading">Uploading...</div>
   </div>
   
   <div class="container">
@@ -194,7 +194,7 @@
       }
     }
     
-    // Function to upload and process a file
+    // Function to upload a file (without processing)
     async function uploadFile() {
       const fileInput = document.getElementById('csvFile');
       const file = fileInput.files[0];
@@ -234,19 +234,28 @@
           <p class="success">File uploaded successfully!</p>
           <p>File: ${data.fileName}</p>
           <p>Size: ${formatFileSize(file.size)}</p>
+          <p>${data.message || ''}</p>
+          <p>${data.nextStep || ''}</p>
           `;
-          
-          // Process the file immediately after upload
-          await processFile(data.fileName);
           
           // Refresh the file list
           listFiles();
         } else {
-          document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
+          document.getElementById('uploadStatus').innerHTML = `
+          <p class="error">Error: ${data.error || 'Unknown error'}</p>
+          <div class="error-details">
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          </div>
+          `;
         }
       } catch (error) {
         document.getElementById('uploadLoading').style.display = 'none';
-        document.getElementById('uploadStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+        document.getElementById('uploadStatus').innerHTML = `
+        <p class="error">Error: ${error.message}</p>
+        <div class="error-details">
+          <pre>${error.stack || 'No stack trace available'}</pre>
+        </div>
+        `;
       }
     }
     
@@ -259,25 +268,48 @@
       }
       
       results.forEach(result => {
-        const statusClass = result.success ? 'success' : 'error';
+        const statusClass = result.status === 'success' ? 'success' : 'error';
         
         html += `
           <div class="file-item ${statusClass}">
             <strong>${result.fileName}</strong>
-            <p><strong>Status:</strong> ${result.success ? 'Success' : 'Error'}</p>
+            <p><strong>Status:</strong> ${result.status}</p>
+            <p>${result.message || ''}</p>
         `;
         
-        if (result.result) {
+        if (result.details) {
           html += `
             <div class="details-container">
-              <p><strong>Total Rows:</strong> ${result.result.totalRows || 0}</p>
-              <p><strong>Valid Rows:</strong> ${result.result.validRows || 0}</p>
-              <p><strong>Unique Rows:</strong> ${result.result.uniqueRows || 0}</p>
-              <p><strong>Table:</strong> ${result.result.tableName || 'Unknown'}</p>
+              <p><strong>Total Rows:</strong> ${result.details.totalRows || 0}</p>
+              <p><strong>Valid Rows:</strong> ${result.details.validRows || 0}</p>
+              <p><strong>Unique Rows:</strong> ${result.details.uniqueRows || 0}</p>
+              <p><strong>Table:</strong> ${result.details.tableName || 'Unknown'}</p>
+              <p><strong>Invalid Rows:</strong> ${result.details.invalidRows || 0}</p>
+              <p><strong>Transform Errors:</strong> ${result.details.transformErrors || 0}</p>
+              <p><strong>Null Key Rows:</strong> ${result.details.nullKeyRows || 0}</p>
+              <p><strong>Duplicates:</strong> ${result.details.duplicateCount || 0}</p>
             </div>
           `;
-        } else if (result.error) {
-          html += `<p class="error"><strong>Error:</strong> ${result.error}</p>`;
+          
+          // Show samples of invalid rows if available
+          if (result.details.details && result.details.details.invalidSample && result.details.details.invalidSample.length > 0) {
+            html += `
+              <div class="error-details">
+                <p><strong>Sample Invalid Rows:</strong></p>
+                <pre>${JSON.stringify(result.details.details.invalidSample, null, 2)}</pre>
+              </div>
+            `;
+          }
+          
+          // Show samples of transform errors if available
+          if (result.details.details && result.details.details.transformErrorSample && result.details.details.transformErrorSample.length > 0) {
+            html += `
+              <div class="error-details">
+                <p><strong>Sample Transform Errors:</strong></p>
+                <pre>${JSON.stringify(result.details.details.transformErrorSample, null, 2)}</pre>
+              </div>
+            `;
+          }
         }
         
         html += '</div>';
@@ -335,6 +367,10 @@
               <p>Total rows: ${data.result?.totalRows || 0}</p>
               <p>Valid rows: ${data.result?.validRows || 0}</p>
               <p>Unique rows: ${data.result?.uniqueRows || 0}</p>
+              <p>Invalid rows: ${data.result?.invalidRows || 0}</p>
+              <p>Transform errors: ${data.result?.transformErrors || 0}</p>
+              <p>Null key rows: ${data.result?.nullKeyRows || 0}</p>
+              <p>Duplicates: ${data.result?.duplicateCount || 0}</p>
             </div>
           `;
           
@@ -344,7 +380,14 @@
             alert(`File processed successfully: ${fileName}\nRecords processed: ${data.result?.uniqueRows || 'unknown'}`);
           }
         } else {
-          const errorHtml = `<div class="status error">Error: ${data.error || 'Unknown error'}</div>`;
+          const errorHtml = `
+            <div class="status error">
+              <p>Error: ${data.error || 'Unknown error'}</p>
+              <div class="error-details">
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+              </div>
+            </div>
+          `;
           
           if (fileItem) {
             fileItem.innerHTML += errorHtml;
@@ -380,18 +423,38 @@
           let statusHtml = `<p class="success">Batch processing completed!</p>`;
           statusHtml += `<p>Files processed: ${data.filesProcessed || 0}</p>`;
           statusHtml += `<p>Total records processed: ${data.totalRecords || 0}</p>`;
+          statusHtml += `<p>Total rows found: ${data.totalRowsFound || 0}</p>`;
           
           if (data.results && data.results.length > 0) {
             statusHtml += displayProcessingResults(data.results);
           }
           
+          if (data.errors && data.errors.length > 0) {
+            statusHtml += `
+              <div class="error-details">
+                <p><strong>Errors:</strong></p>
+                <pre>${JSON.stringify(data.errors, null, 2)}</pre>
+              </div>
+            `;
+          }
+          
           document.getElementById('batchStatus').innerHTML = statusHtml;
         } else {
-          document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${data.error || 'Unknown error'}</p>`;
+          document.getElementById('batchStatus').innerHTML = `
+            <p class="error">Error: ${data.error || 'Unknown error'}</p>
+            <div class="error-details">
+              <pre>${JSON.stringify(data, null, 2)}</pre>
+            </div>
+          `;
         }
       } catch (error) {
         document.getElementById('batchLoading').style.display = 'none';
-        document.getElementById('batchStatus').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+        document.getElementById('batchStatus').innerHTML = `
+          <p class="error">Error: ${error.message}</p>
+          <div class="error-details">
+            <pre>${error.stack || 'No stack trace available'}</pre>
+          </div>
+        `;
       }
     }
     
