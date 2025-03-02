@@ -55,6 +55,25 @@
 <body>
   <h1>Botpress CSV Import Tool</h1>
   
+  <button onclick="testCORS()">Test CORS</button>
+
+  <script>
+  async function testCORS() {
+    try {
+      const response = await fetch('https://ztgtgvinayyoyxfdkaaq.supabase.co/functions/v1/cors-test', {
+        method: 'GET'
+      });
+      
+      const data = await response.json();
+      console.log('CORS test response:', data);
+      alert('CORS test successful!');
+    } catch (error) {
+      console.error('CORS test error:', error);
+      alert('CORS test failed: ' + error.message);
+    }
+  }
+  </script>
+
   <!-- Database View Management - DROP VIEW -->
   <div class="container">
     <h2>Step 1: Drop Impact Report View</h2>
